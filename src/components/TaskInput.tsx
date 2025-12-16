@@ -5,7 +5,7 @@ import { clsx } from 'clsx';
 import { format, parseISO } from 'date-fns';
 import { CalendarView } from './CalendarView'; // Reuse CalendarView for picker
 import { FastAverageColor } from 'fast-average-color';
-import { saveImageToDB } from '../utils/imageDb';
+import { saveImageToDB, deleteImageFromDB } from '../utils/imageDb';
 import { v4 as uuidv4 } from 'uuid';
 import { useImage } from '../hooks/useImage';
 
@@ -384,6 +384,9 @@ export const TaskInput: React.FC<TaskInputProps> = ({ tasks, tags, onAddTask, on
                                             <button
                                                 type="button"
                                                 onClick={() => {
+                                                    if (localTaskImageId) {
+                                                        deleteImageFromDB(localTaskImageId);
+                                                    }
                                                     setTaskImage('');
                                                     setLocalTaskImageId(null);
                                                     setLocalTaskImagePreview(null);
