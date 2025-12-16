@@ -5,7 +5,8 @@ import { TaskList } from './components/TaskList';
 import { CalendarView } from './components/CalendarView';
 import { CheckSquare, Calendar as CalendarIcon, Moon, Sun, AlertTriangle, X } from 'lucide-react';
 import { clsx } from 'clsx';
-import { isSameDay, parseISO, isToday } from 'date-fns';
+import { isSameDay, parseISO, isToday, format } from 'date-fns';
+import { ja } from 'date-fns/locale';
 
 function App() {
   const { tasks, tags, addTask, toggleTask, deleteTask, addTag, deleteTag } = useTasks();
@@ -40,6 +41,12 @@ function App() {
       }
       return newMode;
     });
+  };
+
+  const handleReset = () => {
+    setSelectedDate(null);
+    setSelectedTagFilter(null);
+    setView('list');
   };
 
   const handleDateSelect = (date: Date) => {
@@ -104,12 +111,12 @@ function App() {
 
         {/* Header */}
         <header className="bg-bg-300/80 backdrop-blur-md sticky top-0 z-20 border-b border-bg-200 px-6 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-xl flex items-center justify-center shadow-lg transform hover:scale-105 transition-transform duration-300">
+          <div className="flex items-center gap-3 cursor-pointer group" onClick={handleReset}>
+            <div className="w-10 h-10 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-xl flex items-center justify-center shadow-lg transform group-hover:scale-105 transition-transform duration-300">
               <CheckSquare className="text-white" size={24} color="white" />
             </div>
             <div>
-              <h1 className="text-xl font-black text-primary-200 tracking-tight">Pico Plan</h1>
+              <h1 className="text-xl font-black text-primary-200 tracking-tight group-hover:text-primary-100 transition-colors">Pico Plan</h1>
               <p className="text-[10px] font-bold text-text-200 tracking-widest uppercase">Personal Schedule</p>
             </div>
           </div>
@@ -137,6 +144,36 @@ function App() {
 
         {/* Main Content */}
         <main className="flex-1 p-4 sm:p-6 overflow-y-auto scrollbar-hide">
+
+          {/* Date Card */}
+          <div className="mb-6">
+            <div className="bg-bg-300 dark:bg-slate-800/50 p-6 rounded-3xl border-2 border-bg-200 dark:border-slate-700 shadow-xl flex items-center justify-between relative overflow-hidden group">
+              <div className="absolute top-0 right-0 p-8 opacity-5 text-primary-100 dark:text-primary-200 pointer-events-none transform group-hover:scale-110 transition-transform duration-500">
+                <CalendarIcon size={120} />
+              </div>
+
+              <div>
+                <p className="text-sm font-bold text-text-200 mb-1 uppercase tracking-wider">
+                  {selectedDate ? 'Selected Date' : 'Today'}
+                </p>
+                <h2 className="text-4xl font-black text-text-100 tracking-tight">
+                  {format(selectedDate || new Date(), 'M月d日', { locale: ja })}
+                </h2>
+                <p className="text-lg font-bold text-primary-200 mt-1">
+                  {format(selectedDate || new Date(), 'EEEE', { locale: ja })}
+                </p>
+              </div>
+
+              {selectedDate && (
+                <button
+                  onClick={handleReset}
+                  className="z-10 bg-bg-200 hover:bg-bg-100 text-text-200 p-2 rounded-full transition-colors"
+                >
+                  <X size={20} />
+                </button>
+              )}
+            </div>
+          </div>
 
           {/* View Switcher */}
           <div className="bg-bg-200 p-1 rounded-2xl flex mb-6">
