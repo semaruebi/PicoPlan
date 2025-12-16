@@ -1,0 +1,41 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    /* Light Mode */
+    --primary-100: #8B5FBF;
+    --primary-200: #61398F;
+    --primary-300: #FFFFFF;
+    --accent-100: #D6C6E1;
+    --accent-200: #9A73B5;
+    --text-100: #4A4A4A;
+    --text-200: #878787;
+    --bg-100: #F5F3F7;
+    --bg-200: #E9E4ED;
+    --bg-300: #FFFFFF;
+  }
+
+  .dark {
+    /* Dark Mode */
+    --primary-100: #E7D1BB;
+    --primary-200: #c8b39e;
+    --primary-300: #84725e;
+    --accent-100: #A096A5;
+    --accent-200: #463e4b;
+    --text-100: #A096A2;
+    --text-200: #847a86;
+    --bg-100: #151931;
+    --bg-200: #252841;
+    --bg-300: #3d3f5b;
+  }
+}
+
+@layer base {
+  body {
+    background-color: var(--bg-100);
+    color: var(--text-100);
+    @apply transition-colors duration-300;
+  }
+}
