@@ -5,6 +5,7 @@ export interface Tag {
     name: string;
     themeColor: string;
     imageUrl?: string;
+    localImageId?: string; // IndexedDB ID
 }
 
 export interface Task {
@@ -15,5 +16,8 @@ export interface Task {
     completed: boolean;
     type: TaskType;
     tagId?: string;
+    imageUrl?: string;
+    localImageId?: string; // IndexedDB ID
+    imageOffsetY?: number; // 0-100 percentage for object-position-y
     createdAt: number;
 }

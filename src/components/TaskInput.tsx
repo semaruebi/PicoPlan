@@ -1,17 +1,60 @@
 import React, { useState, useRef, useEffect } from 'react';
 import type { TaskType, Tag, Task } from '../types';
-import { Plus, Calendar, Clock, Tag as TagIcon, X, ChevronDown } from 'lucide-react';
+import { Trash2, Plus, Calendar, Clock, ChevronDown, X, Tag as TagIcon } from 'lucide-react';
 import { clsx } from 'clsx';
 import { format, parseISO } from 'date-fns';
 import { CalendarView } from './CalendarView'; // Reuse CalendarView for picker
+import { FastAverageColor } from 'fast-average-color';
+import { saveImageToDB } from '../utils/imageDb';
+import { v4 as uuidv4 } from 'uuid';
+import { useImage } from '../hooks/useImage';
 
 interface TaskInputProps {
     tasks: Task[]; // Need existing tasks for calendar dots
     tags: Tag[];
-    onAddTask: (title: string, date: string, type: TaskType, tagId?: string, time?: string) => void;
-    onAddTag: (name: string, themeColor: string, imageUrl?: string) => void;
+    onAddTask: (title: string, date: string, type: TaskType, tagId?: string, time?: string, imageUrl?: string, imageOffsetY?: number, localImageId?: string) => void;
+    onAddTag: (name: string, themeColor: string, imageUrl?: string, localImageId?: string) => void;
     onDeleteTag: (id: string) => void;
 }
+
+// Helper component for tag items
+const TagSelectionItem = ({ tag, isSelected, onSelect, onDelete }: { tag: Tag, isSelected: boolean, onSelect: () => void, onDelete: () => void }) => {
+    const imageUrl = useImage(tag.localImageId, tag.imageUrl);
+
+    return (
+        <div className="relative group">
+            <button
+                type="button"
+                onClick={onSelect}
+                className={clsx(
+                    "py-1.5 px-3 rounded-full text-xs font-medium border flex items-center gap-1.5 transition-all",
+                    isSelected
+                        ? "bg-indigo-600 text-white border-indigo-600 shadow-md transform scale-105"
+                        : "bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:border-slate-300 dark:hover:border-slate-600"
+                )}
+            >
+                {imageUrl ? (
+                    <img src={imageUrl} alt="" className="w-4 h-4 rounded-full object-cover" />
+                ) : (
+                    <TagIcon size={12} />
+                )}
+                {tag.name}
+            </button>
+
+            <button
+                type="button"
+                onClick={(e) => {
+                    e.stopPropagation();
+                    onDelete();
+                }}
+                className="absolute -top-1 -right-1 bg-red-500 text-white rounded-full p-0.5 opacity-0 group-hover:opacity-100 transition-opacity z-10"
+                title="削除"
+            >
+                <X size={10} />
+            </button>
+        </div>
+    );
+};
 
 export const TaskInput: React.FC<TaskInputProps> = ({ tasks, tags, onAddTask, onAddTag, onDeleteTag }) => {
     const [isExpanded, setIsExpanded] = useState(false);
@@ -24,7 +67,15 @@ export const TaskInput: React.FC<TaskInputProps> = ({ tasks, tags, onAddTask, on
     const [showNewTagInput, setShowNewTagInput] = useState(false);
     const [newTagName, setNewTagName] = useState('');
     const [newTagImage, setNewTagImage] = useState('');
+    const [localNewTagImageId, setLocalNewTagImageId] = useState<string | null>(null);
+    const [localNewTagImagePreview, setLocalNewTagImagePreview] = useState<string | null>(null);
     const [selectedColor, setSelectedColor] = useState<string>('#e1bee7');
+    const [imageError, setImageError] = useState(false);
+    const [taskImage, setTaskImage] = useState('');
+    const [localTaskImageId, setLocalTaskImageId] = useState<string | null>(null);
+    const [localTaskImagePreview, setLocalTaskImagePreview] = useState<string | null>(null);
+    const [taskImageError, setTaskImageError] = useState(false);
+    const [taskImageOffsetY, setTaskImageOffsetY] = useState(50); // 50% = center
     const [showCalendar, setShowCalendar] = useState(false);
     const containerRef = useRef<HTMLDivElement>(null);
     const calendarRef = useRef<HTMLDivElement>(null);
@@ -36,11 +87,25 @@ export const TaskInput: React.FC<TaskInputProps> = ({ tasks, tags, onAddTask, on
         e.preventDefault();
         if (!title.trim() || !date) return;
 
-        onAddTask(title, date, type, selectedTagId || undefined, time || undefined);
+        if (!title.trim() || !date) return;
+
+        // Pass task image if set, else undefined (prioritize local image if exists)
+        onAddTask(
+            title, date, type,
+            selectedTagId || undefined,
+            time || undefined,
+            taskImage || undefined,
+            (taskImage || localTaskImageId) ? taskImageOffsetY : undefined,
+            localTaskImageId || undefined
+        );
         setTitle('');
         setDescription('');
         setDate('');
         setTime('');
+        setTaskImage('');
+        setLocalTaskImageId(null);
+        setLocalTaskImagePreview(null);
+        setTaskImageOffsetY(50);
         setSelectedTagId('');
         setIsExpanded(false);
         setShowCalendar(false);
@@ -48,13 +113,18 @@ export const TaskInput: React.FC<TaskInputProps> = ({ tasks, tags, onAddTask, on
 
     const handleAddTag = () => {
         if (!newTagName.trim()) return;
-        // Used selected color or random fallback (should be selected)
-        // @ts-ignore
-        onAddTag(newTagName, selectedColor, newTagImage);
+        onAddTag(
+            newTagName.trim(),
+            selectedColor,
+            newTagImage || undefined,
+            localNewTagImageId || undefined
+        );
         setNewTagName('');
         setNewTagImage('');
+        setLocalNewTagImageId(null);
+        setLocalNewTagImagePreview(null);
+        setSelectedColor('#e1bee7');
         setShowNewTagInput(false);
-        // Reset color to first? Or keep?
     };
 
     // Click outside to collapse
@@ -193,40 +263,138 @@ export const TaskInput: React.FC<TaskInputProps> = ({ tasks, tags, onAddTask, on
                             </div>
                         </div>
 
+                        {/* Task Hero Image Input */}
+                        <div className="mb-4">
+                            <label className="block text-xs font-semibold text-text-200 mb-1 uppercase tracking-wider">画像 (オプション)</label>
+                            <div className="flex flex-col gap-2">
+                                <input
+                                    type="text"
+                                    placeholder="画像のURL (https://...)"
+                                    value={taskImage}
+                                    onChange={(e) => {
+                                        setTaskImage(e.target.value);
+                                        setTaskImageError(false);
+                                    }}
+                                    className="w-full text-sm text-text-100 bg-bg-100 dark:bg-slate-800/50 p-2 rounded-lg border border-bg-200 dark:border-slate-700 focus:outline-none focus:border-primary-100"
+                                />
+
+                                <div className="text-center text-xs text-text-200 font-bold my-1">- OR -</div>
+
+                                <div
+                                    onPaste={async (e) => {
+                                        const items = e.clipboardData.items;
+                                        for (const item of items) {
+                                            if (item.type.indexOf('image') !== -1) {
+                                                const file = item.getAsFile();
+                                                if (file) {
+                                                    const id = uuidv4();
+                                                    await saveImageToDB(id, file);
+                                                    setLocalTaskImageId(id);
+                                                    setLocalTaskImagePreview(URL.createObjectURL(file));
+                                                    setTaskImage('');
+                                                    setTaskImageError(false);
+                                                }
+                                            }
+                                        }
+                                    }}
+                                    onDragOver={(e) => e.preventDefault()}
+                                    onDrop={async (e) => {
+                                        e.preventDefault();
+                                        const file = e.dataTransfer.files[0];
+                                        if (file && file.type.startsWith('image/')) {
+                                            const id = uuidv4();
+                                            await saveImageToDB(id, file);
+                                            setLocalTaskImageId(id);
+                                            setLocalTaskImagePreview(URL.createObjectURL(file));
+                                            setTaskImage('');
+                                            setTaskImageError(false);
+                                        }
+                                    }}
+                                >
+                                    <label className="flex flex-col items-center justify-center gap-2 w-full h-32 px-4 py-6 bg-bg-200 dark:bg-slate-700 hover:bg-bg-300 dark:hover:bg-slate-600 rounded-xl cursor-pointer transition-all border-2 border-dashed border-text-200 hover:border-primary-100 group-hover:bg-bg-300">
+                                        <div className="w-10 h-10 rounded-full bg-bg-100 dark:bg-slate-800 flex items-center justify-center mb-1">
+                                            <TagIcon size={20} className="text-text-200" />
+                                        </div>
+                                        <span className="text-sm font-bold text-text-200 text-center">
+                                            画像をアップロード<br />
+                                            <span className="text-xs opacity-70 font-normal">ドラッグ＆ドロップ または 貼り付け</span>
+                                        </span>
+                                        <input
+                                            type="file"
+                                            accept="image/*"
+                                            className="hidden"
+                                            onChange={async (e) => {
+                                                const file = e.target.files?.[0];
+                                                if (file) {
+                                                    const id = uuidv4();
+                                                    await saveImageToDB(id, file);
+                                                    setLocalTaskImageId(id);
+                                                    setLocalTaskImagePreview(URL.createObjectURL(file));
+                                                    setTaskImage('');
+                                                    setTaskImageError(false);
+                                                }
+                                            }}
+                                        />
+                                    </label>
+                                </div>
+
+                                {(taskImage || localTaskImagePreview) && !taskImageError && (
+                                    <div className="mt-3 space-y-2 animate-in fade-in zoom-in duration-300">
+                                        <div className="relative rounded-xl overflow-hidden border border-bg-200 group">
+                                            <img
+                                                src={localTaskImagePreview || taskImage}
+                                                alt="Preview"
+                                                className="w-full h-32 object-cover"
+                                                onError={() => setTaskImageError(true)}
+                                                style={{ objectPosition: `center ${taskImageOffsetY}%` }}
+                                            />
+                                            {/* Vertical Position Slider Overlay */}
+                                            <div className="absolute inset-x-0 bottom-0 bg-black/60 backdrop-blur-sm p-2 transform translate-y-full group-hover:translate-y-0 transition-transform">
+                                                <input
+                                                    type="range"
+                                                    min="0"
+                                                    max="100"
+                                                    value={taskImageOffsetY}
+                                                    onChange={(e) => setTaskImageOffsetY(Number(e.target.value))}
+                                                    className="w-full h-1 bg-white/30 rounded-lg appearance-none cursor-pointer"
+                                                />
+                                                <div className="text-center text-[10px] text-white/80 font-mono mt-1">POSITION: {taskImageOffsetY}%</div>
+                                            </div>
+
+                                            {/* Delete Button */}
+                                            <button
+                                                type="button"
+                                                onClick={() => {
+                                                    setTaskImage('');
+                                                    setLocalTaskImageId(null);
+                                                    setLocalTaskImagePreview(null);
+                                                }}
+                                                className="absolute top-2 right-2 p-1.5 bg-red-500/80 hover:bg-red-500 text-white rounded-full shadow-md transition-colors"
+                                            >
+                                                <Trash2 size={14} />
+                                            </button>
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+
                         <div className="mb-6">
                             <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1 uppercase tracking-wider">タグ (オプション)</label>
                             <div className="flex flex-wrap gap-2">
                                 {tags.map(tag => (
-                                    <div key={tag.id} className="relative group">
-                                        <button
-                                            type="button"
-                                            onClick={() => setSelectedTagId(selectedTagId === tag.id ? '' : tag.id)}
-                                            className={clsx(
-                                                "py-1.5 px-3 rounded-full text-xs font-medium border flex items-center gap-1.5 transition-all",
-                                                selectedTagId === tag.id
-                                                    ? "bg-indigo-600 text-white border-indigo-600 shadow-md transform scale-105"
-                                                    : "bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:border-slate-300 dark:hover:border-slate-600"
-                                            )}
-                                        >
-                                            <TagIcon size={12} /> {tag.name}
-                                        </button>
-
-                                        <button
-                                            type="button"
-                                            onClick={(e) => {
-                                                e.stopPropagation();
-                                                // Confirm delete
-                                                if (window.confirm(`タグ「${tag.name}」を削除しますか？`)) {
-                                                    onDeleteTag(tag.id);
-                                                    if (selectedTagId === tag.id) setSelectedTagId('');
-                                                }
-                                            }}
-                                            className="absolute -top-1 -right-1 bg-red-500 text-white rounded-full p-0.5 opacity-0 group-hover:opacity-100 transition-opacity z-10"
-                                            title="削除"
-                                        >
-                                            <X size={10} />
-                                        </button>
-                                    </div>
+                                    <TagSelectionItem
+                                        key={tag.id}
+                                        tag={tag}
+                                        isSelected={selectedTagId === tag.id}
+                                        onSelect={() => setSelectedTagId(selectedTagId === tag.id ? '' : tag.id)}
+                                        onDelete={() => {
+                                            if (window.confirm(`タグ「${tag.name}」を削除しますか？`)) {
+                                                onDeleteTag(tag.id);
+                                                if (selectedTagId === tag.id) setSelectedTagId('');
+                                            }
+                                        }}
+                                    />
                                 ))}
 
                                 {showNewTagInput ? (
@@ -248,22 +416,83 @@ export const TaskInput: React.FC<TaskInputProps> = ({ tasks, tags, onAddTask, on
                                                 className="flex-1 text-sm py-2 px-3 rounded-lg border border-bg-200 dark:border-slate-600 bg-bg-300 dark:bg-slate-900 focus:outline-none focus:ring-2 focus:ring-primary-100 text-text-100 min-w-[120px]"
                                                 onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), handleAddTag())}
                                             />
+                                            <label className="flex-shrink-0 w-10 flex items-center justify-center bg-bg-200 dark:bg-slate-700 hover:bg-bg-300 dark:hover:bg-slate-600 rounded-lg cursor-pointer transition-colors border border-dashed border-text-200" title="画像をアップロード">
+                                                <span className="text-xs font-bold text-text-200">+</span>
+                                                <input
+                                                    type="file"
+                                                    accept="image/*"
+                                                    className="hidden"
+                                                    onChange={async (e) => {
+                                                        const file = e.target.files?.[0];
+                                                        if (file) {
+                                                            const id = uuidv4();
+                                                            await saveImageToDB(id, file);
+                                                            setLocalNewTagImageId(id);
+                                                            setLocalNewTagImagePreview(URL.createObjectURL(file));
+                                                            setNewTagImage('');
+                                                        }
+                                                    }}
+                                                />
+                                            </label>
                                         </div>
 
-                                        {/* Color Picker */}
-                                        <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-hide">
-                                            {COLORS.map(color => (
-                                                <button
-                                                    key={color}
-                                                    type="button"
-                                                    onClick={() => setSelectedColor(color)}
-                                                    className={clsx(
-                                                        "w-5 h-5 rounded-full border border-bg-200 flex-shrink-0 transition-transform",
-                                                        selectedColor === color ? "ring-2 ring-primary-100 scale-110" : "hover:scale-105"
-                                                    )}
-                                                    style={{ backgroundColor: color }}
-                                                />
-                                            ))}
+                                        {/* Color Picker Area */}
+                                        <div className="space-y-2">
+                                            {/* Preview & Auto Extraction */}
+                                            {(newTagImage || localNewTagImagePreview) && !imageError && (
+                                                <div className="flex items-center gap-2 p-2 bg-bg-200 dark:bg-slate-700/50 rounded-lg">
+                                                    <div className="relative w-8 h-8 flex-shrink-0">
+                                                        <img
+                                                            src={localNewTagImagePreview || newTagImage}
+                                                            alt="Preview"
+                                                            className="w-full h-full object-cover rounded-full border border-bg-200"
+                                                            onError={() => setImageError(true)}
+                                                            onLoad={(e) => {
+                                                                // Auto Extract Color
+                                                                try {
+                                                                    const fac = new FastAverageColor();
+                                                                    fac.getColorAsync(e.currentTarget as HTMLImageElement)
+                                                                        .then(color => {
+                                                                            setSelectedColor(color.hex);
+                                                                        })
+                                                                        .catch(() => { /* Ignore CORS errors */ });
+                                                                } catch (err) { console.error(err); }
+                                                            }}
+                                                        />
+                                                    </div>
+                                                    <span className="text-xs text-text-200 truncate flex-1">
+                                                        画像から色を抽出します
+                                                    </span>
+                                                </div>
+                                            )}
+
+                                            <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-hide">
+                                                {/* Free Picker */}
+                                                <div className="relative group flex-shrink-0">
+                                                    <div className="w-5 h-5 rounded-full overflow-hidden border border-bg-200 ring-2 ring-transparent group-hover:ring-primary-100/50 transition-all">
+                                                        <input
+                                                            type="color"
+                                                            value={selectedColor}
+                                                            onChange={(e) => setSelectedColor(e.target.value)}
+                                                            className="w-[150%] h-[150%] -m-[25%] p-0 cursor-pointer border-none outline-none"
+                                                        />
+                                                    </div>
+                                                </div>
+
+                                                {/* Presets */}
+                                                {COLORS.map(color => (
+                                                    <button
+                                                        key={color}
+                                                        type="button"
+                                                        onClick={() => setSelectedColor(color)}
+                                                        className={clsx(
+                                                            "w-5 h-5 rounded-full border border-bg-200 flex-shrink-0 transition-transform",
+                                                            selectedColor === color ? "ring-2 ring-primary-100 scale-110" : "hover:scale-105"
+                                                        )}
+                                                        style={{ backgroundColor: color }}
+                                                    />
+                                                ))}
+                                            </div>
                                         </div>
 
                                         <div className="flex gap-2 mt-2">

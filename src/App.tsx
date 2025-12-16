@@ -7,6 +7,9 @@ import { CheckSquare, Calendar as CalendarIcon, Moon, Sun, AlertTriangle, X } fr
 import { clsx } from 'clsx';
 import { isSameDay, parseISO, isToday, format } from 'date-fns';
 import { ja } from 'date-fns/locale';
+import { useImage } from './hooks/useImage';
+import { saveImageToDB } from './utils/imageDb';
+import { Image as ImageIcon, Sliders } from 'lucide-react'; // Add Icons
 
 function App() {
   const { tasks, tags, addTask, toggleTask, deleteTask, addTag, deleteTag } = useTasks();
@@ -14,6 +17,19 @@ function App() {
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [selectedTagFilter, setSelectedTagFilter] = useState<string | null>(null);
   const [isDarkMode, setIsDarkMode] = useState(false);
+  const bannerUrl = useImage('app-banner'); // Fixed ID for app banner
+  const [bannerKey, setBannerKey] = useState(0); // Force re-render on update
+
+  // Banner Settings
+  const [showBannerSettings, setShowBannerSettings] = useState(false);
+  const [bannerSettings, setBannerSettings] = useState(() => {
+    const saved = localStorage.getItem('picoplan-banner-settings');
+    return saved ? JSON.parse(saved) : { offsetY: 50, opacity: 40 };
+  });
+
+  useEffect(() => {
+    localStorage.setItem('picoplan-banner-settings', JSON.stringify(bannerSettings));
+  }, [bannerSettings]);
 
   // Dark mode initialization
   useEffect(() => {
@@ -146,32 +162,124 @@ function App() {
         <main className="flex-1 p-4 sm:p-6 overflow-y-auto scrollbar-hide">
 
           {/* Date Card */}
+          {/* Date Card */}
           <div className="mb-6">
-            <div className="bg-bg-300 dark:bg-slate-800/50 p-6 rounded-3xl border-2 border-bg-200 dark:border-slate-700 shadow-xl flex items-center justify-between relative overflow-hidden group">
-              <div className="absolute top-0 right-0 p-8 opacity-5 text-primary-100 dark:text-primary-200 pointer-events-none transform group-hover:scale-110 transition-transform duration-500">
+            <div className="bg-bg-300 dark:bg-slate-800/50 p-6 rounded-3xl border-2 border-bg-200 dark:border-slate-700 shadow-xl flex items-center justify-between relative overflow-hidden group min-h-[160px]">
+
+              {/* Banner Background */}
+              {bannerUrl && (
+                <>
+                  <img
+                    key={bannerKey}
+                    src={bannerUrl}
+                    alt="Banner"
+                    className="absolute inset-0 w-full h-full object-cover z-0 transition-all duration-700 group-hover:scale-105"
+                    style={{
+                      objectPosition: `center ${bannerSettings.offsetY}%`,
+                      opacity: bannerSettings.opacity / 100
+                    }}
+                  />
+                  <div className="absolute inset-0 bg-gradient-to-r from-bg-300/90 via-bg-300/70 to-transparent z-0 pointer-events-none"></div>
+                </>
+              )}
+
+              <div className="absolute top-0 right-0 p-8 opacity-5 text-primary-100 dark:text-primary-200 pointer-events-none transform group-hover:scale-110 transition-transform duration-500 z-0">
                 <CalendarIcon size={120} />
               </div>
 
-              <div>
+              <div className="relative z-10 transition-all duration-300" style={{ opacity: showBannerSettings ? 0.4 : 1 }}>
                 <p className="text-sm font-bold text-text-200 mb-1 uppercase tracking-wider">
                   {selectedDate ? 'Selected Date' : 'Today'}
                 </p>
-                <h2 className="text-4xl font-black text-text-100 tracking-tight">
+                <h2 className="text-4xl font-black text-text-100 tracking-tight drop-shadow-sm">
                   {format(selectedDate || new Date(), 'M月d日', { locale: ja })}
                 </h2>
-                <p className="text-lg font-bold text-primary-200 mt-1">
+                <p className="text-lg font-bold text-primary-200 mt-1 drop-shadow-sm">
                   {format(selectedDate || new Date(), 'EEEE', { locale: ja })}
                 </p>
               </div>
 
-              {selectedDate && (
-                <button
-                  onClick={handleReset}
-                  className="z-10 bg-bg-200 hover:bg-bg-100 text-text-200 p-2 rounded-full transition-colors"
-                >
-                  <X size={20} />
-                </button>
+              {/* Settings Panel Overlay */}
+              {showBannerSettings && bannerUrl && (
+                <div className="absolute inset-0 z-20 flex flex-col justify-center px-8 bg-bg-300/90 dark:bg-slate-800/90 backdrop-blur-md animate-in fade-in duration-200">
+                  <h3 className="text-sm font-bold text-text-200 mb-4 flex items-center gap-2">
+                    <Sliders size={16} /> バナー設定
+                  </h3>
+
+                  <div className="space-y-4">
+                    <div>
+                      <div className="flex justify-between text-xs font-semibold text-text-200 mb-1">
+                        <span>位置 (Y)</span>
+                        <span>{bannerSettings.offsetY}%</span>
+                      </div>
+                      <input
+                        type="range"
+                        min="0" max="100"
+                        value={bannerSettings.offsetY}
+                        onChange={e => setBannerSettings((p: { offsetY: number; opacity: number }) => ({ ...p, offsetY: Number(e.target.value) }))}
+                        className="w-full h-2 bg-bg-200 rounded-lg appearance-none cursor-pointer accent-primary-100"
+                      />
+                    </div>
+                    <div>
+                      <div className="flex justify-between text-xs font-semibold text-text-200 mb-1">
+                        <span>透明度</span>
+                        <span>{bannerSettings.opacity}%</span>
+                      </div>
+                      <input
+                        type="range"
+                        min="10" max="100"
+                        value={bannerSettings.opacity}
+                        onChange={e => setBannerSettings((p: { offsetY: number; opacity: number }) => ({ ...p, opacity: Number(e.target.value) }))}
+                        className="w-full h-2 bg-bg-200 rounded-lg appearance-none cursor-pointer accent-primary-100"
+                      />
+                    </div>
+                  </div>
+                </div>
               )}
+
+              <div className="relative z-30 flex gap-2">
+                {bannerUrl && (
+                  <button
+                    onClick={() => setShowBannerSettings(!showBannerSettings)}
+                    className={clsx(
+                      "p-2 rounded-full transition-colors backdrop-blur-sm",
+                      showBannerSettings ? "bg-primary-100 text-white shadow-lg" : "bg-bg-200/80 hover:bg-bg-100 text-text-200"
+                    )}
+                    title="バナー設定"
+                  >
+                    <Sliders size={20} />
+                  </button>
+                )}
+
+                <label className={clsx(
+                  "p-2 bg-bg-200/80 hover:bg-bg-100 text-text-200 rounded-full cursor-pointer transition-colors backdrop-blur-sm",
+                  showBannerSettings && "opacity-0 pointer-events-none"
+                )} title="背景画像を変更">
+                  <ImageIcon size={20} />
+                  <input
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={async (e) => {
+                      const file = e.target.files?.[0];
+                      if (file) {
+                        await saveImageToDB('app-banner', file);
+                        setBannerKey(prev => prev + 1);
+                        window.location.reload();
+                      }
+                    }}
+                  />
+                </label>
+
+                {selectedDate && !showBannerSettings && (
+                  <button
+                    onClick={handleReset}
+                    className="bg-bg-200/80 hover:bg-bg-100 text-text-200 p-2 rounded-full transition-colors backdrop-blur-sm"
+                  >
+                    <X size={20} />
+                  </button>
+                )}
+              </div>
             </div>
           </div>
 

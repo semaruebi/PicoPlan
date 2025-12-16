@@ -160,7 +160,10 @@ export const CalendarView: React.FC<CalendarViewProps> = ({ tasks, tags, onSelec
                                             <div
                                                 key={task.id}
                                                 className="text-[10px] truncate px-1.5 py-0.5 rounded-sm text-white font-medium bg-opacity-90 hover:bg-opacity-100 transition-opacity"
-                                                style={{ backgroundColor: color }}
+                                                style={{
+                                                    backgroundColor: color,
+                                                    textShadow: '0 1px 2px rgba(0,0,0,0.6)' // Ensure readability on light backgrounds
+                                                }}
                                             >
                                                 {task.title}
                                             </div>

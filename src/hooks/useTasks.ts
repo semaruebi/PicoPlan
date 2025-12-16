@@ -90,7 +90,7 @@ export const useTasks = () => {
         localStorage.setItem(STORAGE_KEY_TAGS, JSON.stringify(newTags));
     };
 
-    const addTask = (title: string, date: string, type: TaskType, tagId?: string, time?: string) => {
+    const addTask = (title: string, date: string, type: TaskType, tagId?: string, time?: string, imageUrl?: string, imageOffsetY?: number, localImageId?: string) => {
         const newTask: Task = {
             id: uuidv4(),
             title,
@@ -99,6 +99,9 @@ export const useTasks = () => {
             completed: false,
             tagId,
             time,
+            imageUrl,
+            localImageId,
+            imageOffsetY,
             createdAt: Date.now()
         };
         saveTasks([...tasks, newTask]);
@@ -113,29 +116,51 @@ export const useTasks = () => {
 
     const deleteTask = (id: string) => {
         if (window.confirm('タスクを削除してもよろしいですか？')) {
+            const task = tasks.find(t => t.id === id);
+            // Cleanup local image if exists
+            if (task?.localImageId) {
+                import('../utils/imageDb').then(({ deleteImageFromDB }) => {
+                    deleteImageFromDB(task.localImageId!);
+                });
+            }
+
             const newTasks = tasks.filter(task => task.id !== id);
             saveTasks(newTasks);
         }
     };
 
-    const addTag = (name: string, themeColor: string, imageUrl?: string) => {
+    const addTag = (name: string, themeColor: string, imageUrl?: string, localImageId?: string) => {
         const newTag: Tag = {
             id: uuidv4(),
             name,
             themeColor,
-            imageUrl
+            imageUrl,
+            localImageId
         };
-        saveTags([...tags, newTag]);
+        const newTags = [...tags, newTag];
+        saveTags(newTags);
+        return newTag;
     };
 
     const deleteTag = (id: string) => {
-        const newTags = tags.filter(g => g.id !== id);
-        saveTags(newTags);
+        if (window.confirm('このタグを削除してもよろしいですか？（使用中のタスクのタグは解除されます）')) {
+            const tag = tags.find(t => t.id === id);
+            // Cleanup local image if exists
+            if (tag?.localImageId) {
+                import('../utils/imageDb').then(({ deleteImageFromDB }) => {
+                    deleteImageFromDB(tag.localImageId!);
+                });
+            }
 
-        const newTasks = tasks.map(t =>
-            t.tagId === id ? { ...t, tagId: undefined } : t
-        );
-        saveTasks(newTasks);
+            const newTags = tags.filter(tag => tag.id !== id);
+            saveTags(newTags);
+
+            // Remove tag from tasks
+            const newTasks = tasks.map(task =>
+                task.tagId === id ? { ...task, tagId: undefined } : task
+            );
+            saveTasks(newTasks);
+        }
     };
 
     return {
