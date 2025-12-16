@@ -12,7 +12,7 @@ import { useImage } from '../hooks/useImage';
 interface TaskInputProps {
     tasks: Task[]; // Need existing tasks for calendar dots
     tags: Tag[];
-    onAddTask: (title: string, date: string, type: TaskType, tagId?: string, time?: string, imageUrl?: string, imageOffsetY?: number, localImageId?: string) => void;
+    onAddTask: (title: string, date: string, type: TaskType, tagId?: string, time?: string, imageUrl?: string, imageOffsetY?: number, localImageId?: string, imageOpacity?: number) => void;
     onAddTag: (name: string, themeColor: string, imageUrl?: string, localImageId?: string) => void;
     onDeleteTag: (id: string) => void;
 }
@@ -76,6 +76,7 @@ export const TaskInput: React.FC<TaskInputProps> = ({ tasks, tags, onAddTask, on
     const [localTaskImagePreview, setLocalTaskImagePreview] = useState<string | null>(null);
     const [taskImageError, setTaskImageError] = useState(false);
     const [taskImageOffsetY, setTaskImageOffsetY] = useState(50); // 50% = center
+    const [taskImageOpacity, setTaskImageOpacity] = useState(30); // Default to 30%
     const [showCalendar, setShowCalendar] = useState(false);
     const containerRef = useRef<HTMLDivElement>(null);
     const calendarRef = useRef<HTMLDivElement>(null);
@@ -87,8 +88,6 @@ export const TaskInput: React.FC<TaskInputProps> = ({ tasks, tags, onAddTask, on
         e.preventDefault();
         if (!title.trim() || !date) return;
 
-        if (!title.trim() || !date) return;
-
         // Pass task image if set, else undefined (prioritize local image if exists)
         onAddTask(
             title, date, type,
@@ -96,7 +95,8 @@ export const TaskInput: React.FC<TaskInputProps> = ({ tasks, tags, onAddTask, on
             time || undefined,
             taskImage || undefined,
             (taskImage || localTaskImageId) ? taskImageOffsetY : undefined,
-            localTaskImageId || undefined
+            localTaskImageId || undefined,
+            (taskImage || localTaskImageId) ? taskImageOpacity : undefined
         );
         setTitle('');
         setDescription('');
@@ -106,6 +106,7 @@ export const TaskInput: React.FC<TaskInputProps> = ({ tasks, tags, onAddTask, on
         setLocalTaskImageId(null);
         setLocalTaskImagePreview(null);
         setTaskImageOffsetY(50);
+        setTaskImageOpacity(30);
         setSelectedTagId('');
         setIsExpanded(false);
         setShowCalendar(false);
@@ -348,17 +349,35 @@ export const TaskInput: React.FC<TaskInputProps> = ({ tasks, tags, onAddTask, on
                                                 onError={() => setTaskImageError(true)}
                                                 style={{ objectPosition: `center ${taskImageOffsetY}%` }}
                                             />
-                                            {/* Vertical Position Slider Overlay */}
-                                            <div className="absolute inset-x-0 bottom-0 bg-black/60 backdrop-blur-sm p-2 transform translate-y-full group-hover:translate-y-0 transition-transform">
-                                                <input
-                                                    type="range"
-                                                    min="0"
-                                                    max="100"
-                                                    value={taskImageOffsetY}
-                                                    onChange={(e) => setTaskImageOffsetY(Number(e.target.value))}
-                                                    className="w-full h-1 bg-white/30 rounded-lg appearance-none cursor-pointer"
-                                                />
-                                                <div className="text-center text-[10px] text-white/80 font-mono mt-1">POSITION: {taskImageOffsetY}%</div>
+                                            <div className="absolute inset-x-0 bottom-0 bg-black/60 backdrop-blur-sm p-3 transform translate-y-full group-hover:translate-y-0 transition-transform flex flex-col gap-2">
+                                                <div>
+                                                    <div className="flex justify-between text-[10px] text-white/80 font-mono mb-1">
+                                                        <span>POS Y</span>
+                                                        <span>{taskImageOffsetY}%</span>
+                                                    </div>
+                                                    <input
+                                                        type="range"
+                                                        min="0"
+                                                        max="100"
+                                                        value={taskImageOffsetY}
+                                                        onChange={(e) => setTaskImageOffsetY(Number(e.target.value))}
+                                                        className="w-full h-1 bg-white/30 rounded-lg appearance-none cursor-pointer"
+                                                    />
+                                                </div>
+                                                <div>
+                                                    <div className="flex justify-between text-[10px] text-white/80 font-mono mb-1">
+                                                        <span>OPACITY</span>
+                                                        <span>{taskImageOpacity}%</span>
+                                                    </div>
+                                                    <input
+                                                        type="range"
+                                                        min="10"
+                                                        max="100"
+                                                        value={taskImageOpacity}
+                                                        onChange={(e) => setTaskImageOpacity(Number(e.target.value))}
+                                                        className="w-full h-1 bg-white/30 rounded-lg appearance-none cursor-pointer"
+                                                    />
+                                                </div>
                                             </div>
 
                                             {/* Delete Button */}

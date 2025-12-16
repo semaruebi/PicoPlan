@@ -90,7 +90,17 @@ export const useTasks = () => {
         localStorage.setItem(STORAGE_KEY_TAGS, JSON.stringify(newTags));
     };
 
-    const addTask = (title: string, date: string, type: TaskType, tagId?: string, time?: string, imageUrl?: string, imageOffsetY?: number, localImageId?: string) => {
+    const addTask = (
+        title: string,
+        date: string,
+        type: TaskType,
+        tagId?: string,
+        time?: string,
+        imageUrl?: string,
+        imageOffsetY?: number,
+        localImageId?: string,
+        imageOpacity?: number
+    ) => {
         const newTask: Task = {
             id: uuidv4(),
             title,
@@ -102,6 +112,7 @@ export const useTasks = () => {
             imageUrl,
             localImageId,
             imageOffsetY,
+            imageOpacity,
             createdAt: Date.now()
         };
         saveTasks([...tasks, newTask]);
@@ -110,6 +121,13 @@ export const useTasks = () => {
     const toggleTask = (id: string) => {
         const newTasks = tasks.map(task =>
             task.id === id ? { ...task, completed: !task.completed } : task
+        );
+        saveTasks(newTasks);
+    };
+
+    const updateTask = (id: string, updates: Partial<Task>) => {
+        const newTasks = tasks.map(task =>
+            task.id === id ? { ...task, ...updates } : task
         );
         saveTasks(newTasks);
     };
@@ -170,6 +188,7 @@ export const useTasks = () => {
         toggleTask,
         deleteTask,
         addTag,
-        deleteTag
+        deleteTag,
+        updateTask
     };
 };

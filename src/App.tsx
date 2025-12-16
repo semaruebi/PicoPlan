@@ -12,7 +12,7 @@ import { saveImageToDB } from './utils/imageDb';
 import { Image as ImageIcon, Sliders } from 'lucide-react'; // Add Icons
 
 function App() {
-  const { tasks, tags, addTask, toggleTask, deleteTask, addTag, deleteTag } = useTasks();
+  const { tasks, tags, addTask, toggleTask, deleteTask, addTag, deleteTag, updateTask } = useTasks();
   const [view, setView] = useState<'list' | 'calendar'>('list');
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [selectedTagFilter, setSelectedTagFilter] = useState<string | null>(null);
@@ -201,8 +201,8 @@ function App() {
 
               {/* Settings Panel Overlay */}
               {showBannerSettings && bannerUrl && (
-                <div className="absolute inset-0 z-20 flex flex-col justify-center px-8 bg-bg-300/90 dark:bg-slate-800/90 backdrop-blur-md animate-in fade-in duration-200">
-                  <h3 className="text-sm font-bold text-text-200 mb-4 flex items-center gap-2">
+                <div className="absolute inset-0 z-20 flex flex-col justify-center px-8 bg-bg-300/60 dark:bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-200">
+                  <h3 className="text-sm font-bold text-text-200 mb-4 flex items-center gap-2 drop-shadow-md">
                     <Sliders size={16} /> バナー設定
                   </h3>
 
@@ -366,11 +366,12 @@ function App() {
                   tags={tags}
                   onToggle={toggleTask}
                   onDelete={deleteTask}
-                  onSelectTag={(tagId) => {
-                    setSelectedTagFilter(tagId);
-                    setView('list'); // Ensure we are in list view
+                  onSelectTag={(id) => {
+                    setSelectedTagFilter(id === selectedTagFilter ? null : id);
+                    if (id !== selectedTagFilter) setView('list');
                     window.scrollTo({ top: 0, behavior: 'smooth' });
                   }}
+                  onUpdateTask={updateTask}
                 />
               </div>
             </div>

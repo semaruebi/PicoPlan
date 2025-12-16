@@ -19,5 +19,6 @@ export interface Task {
     imageUrl?: string;
     localImageId?: string; // IndexedDB ID
     imageOffsetY?: number; // 0-100 percentage for object-position-y
+    imageOpacity?: number; // 0-100 percentage for opacity
     createdAt: number;
 }
