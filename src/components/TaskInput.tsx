@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import type { TaskType, Tag, Task } from '../types';
 import { Trash2, Plus, Calendar, Clock, ChevronDown, X, Tag as TagIcon } from 'lucide-react';
 import { clsx } from 'clsx';
-import { format, parseISO } from 'date-fns';
+import { format, parseISO, addDays } from 'date-fns';
 import { CalendarView } from './CalendarView'; // Reuse CalendarView for picker
 import { FastAverageColor } from 'fast-average-color';
 import { saveImageToDB, deleteImageFromDB } from '../utils/imageDb';
@@ -78,6 +78,11 @@ export const TaskInput: React.FC<TaskInputProps> = ({ tasks, tags, onAddTask, on
     const [taskImageOffsetY, setTaskImageOffsetY] = useState(50); // 50% = center
     const [taskImageOpacity, setTaskImageOpacity] = useState(30); // Default to 30%
     const [showCalendar, setShowCalendar] = useState(false);
+
+    // Date Input Mode
+    const [dateInputMode, setDateInputMode] = useState<'picker' | 'relative'>('picker');
+    const [relativeDays, setRelativeDays] = useState<number>(0);
+
     const containerRef = useRef<HTMLDivElement>(null);
     const calendarRef = useRef<HTMLDivElement>(null);
 
@@ -145,6 +150,14 @@ export const TaskInput: React.FC<TaskInputProps> = ({ tasks, tags, onAddTask, on
         return () => document.removeEventListener('mousedown', handleClickOutside);
     }, [title, date]);
 
+    // Update date when relative days change
+    useEffect(() => {
+        if (dateInputMode === 'relative') {
+            const targetDate = addDays(new Date(), relativeDays);
+            setDate(format(targetDate, 'yyyy-MM-dd'));
+        }
+    }, [relativeDays, dateInputMode]);
+
     const handleDateSelect = (selectedDate: Date) => {
         setDate(format(selectedDate, 'yyyy-MM-dd'));
         setShowCalendar(false);
@@ -191,19 +204,62 @@ export const TaskInput: React.FC<TaskInputProps> = ({ tasks, tags, onAddTask, on
 
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
                             <div className="relative" ref={calendarRef}>
-                                <label className="block text-xs font-semibold text-text-200 mb-1 uppercase tracking-wider">期限日 / 予定日</label>
+                                <div className="flex items-center justify-between mb-1">
+                                    <label className="block text-xs font-semibold text-text-200 uppercase tracking-wider">期限日 / 予定日</label>
+                                    <div className="flex bg-bg-200 dark:bg-slate-700 rounded-lg p-0.5">
+                                        <button
+                                            type="button"
+                                            onClick={() => setDateInputMode('picker')}
+                                            className={clsx(
+                                                "px-2 py-0.5 text-[10px] font-bold rounded-md transition-all",
+                                                dateInputMode === 'picker' ? "bg-white dark:bg-slate-600 text-primary-100 shadow-sm" : "text-text-200 hover:text-text-100"
+                                            )}
+                                        >
+                                            日付
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={() => {
+                                                setDateInputMode('relative');
+                                                setRelativeDays(3); // Default to 3 days later
+                                            }}
+                                            className={clsx(
+                                                "px-2 py-0.5 text-[10px] font-bold rounded-md transition-all",
+                                                dateInputMode === 'relative' ? "bg-white dark:bg-slate-600 text-primary-100 shadow-sm" : "text-text-200 hover:text-text-100"
+                                            )}
+                                        >
+                                            ○日後
+                                        </button>
+                                    </div>
+                                </div>
+
                                 <div className="flex gap-2">
-                                    <button
-                                        type="button"
-                                        onClick={() => setShowCalendar(!showCalendar)}
-                                        className="flex-1 min-w-[140px] text-sm p-2 rounded-lg border border-bg-200 dark:border-slate-700 text-text-100 focus:outline-none focus:border-primary-100 bg-bg-300 dark:bg-slate-900 flex items-center justify-between whitespace-nowrap"
-                                    >
-                                        <span className="flex items-center gap-2">
-                                            <Calendar size={16} className="text-text-200 flex-shrink-0" />
-                                            {date ? format(parseISO(date), 'yyyy/MM/dd') : '日付を選択'}
-                                        </span>
-                                        <ChevronDown size={14} className="text-text-200 transition-transform duration-200 flex-shrink-0 ml-1" style={{ transform: showCalendar ? 'rotate(180deg)' : 'rotate(0deg)' }} />
-                                    </button>
+                                    {dateInputMode === 'picker' ? (
+                                        <button
+                                            type="button"
+                                            onClick={() => setShowCalendar(!showCalendar)}
+                                            className="flex-1 min-w-[140px] text-sm p-2 rounded-lg border border-bg-200 dark:border-slate-700 text-text-100 focus:outline-none focus:border-primary-100 bg-bg-300 dark:bg-slate-900 flex items-center justify-between whitespace-nowrap"
+                                        >
+                                            <span className="flex items-center gap-2">
+                                                <Calendar size={16} className="text-text-200 flex-shrink-0" />
+                                                {date ? format(parseISO(date), 'yyyy/MM/dd') : '日付を選択'}
+                                            </span>
+                                            <ChevronDown size={14} className="text-text-200 transition-transform duration-200 flex-shrink-0 ml-1" style={{ transform: showCalendar ? 'rotate(180deg)' : 'rotate(0deg)' }} />
+                                        </button>
+                                    ) : (
+                                        <div className="flex-1 flex items-center gap-2 bg-bg-300 dark:bg-slate-900 border border-bg-200 dark:border-slate-700 rounded-lg p-1">
+                                            <input
+                                                type="number"
+                                                min="0"
+                                                value={relativeDays}
+                                                onChange={(e) => setRelativeDays(Math.max(0, parseInt(e.target.value) || 0))}
+                                                className="w-16 text-center bg-transparent font-bold text-lg text-primary-100 focus:outline-none py-1"
+                                            />
+                                            <span className="text-sm text-text-100 font-bold whitespace-nowrap mr-2">
+                                                日後 <span className="text-xs text-text-200 font-normal">({date ? format(parseISO(date), 'M/d') : '-/-'})</span>
+                                            </span>
+                                        </div>
+                                    )}
                                     <input
                                         type="time"
                                         value={time}
@@ -213,7 +269,7 @@ export const TaskInput: React.FC<TaskInputProps> = ({ tasks, tags, onAddTask, on
                                 </div>
 
                                 {/* Custom Date Picker (Inline) */}
-                                {showCalendar && (
+                                {showCalendar && dateInputMode === 'picker' && (
                                     <div className="mt-2 z-10 w-full shadow-sm animate-in fade-in slide-in-from-top-2 duration-200">
                                         <div className="bg-bg-300 dark:bg-slate-800 rounded-2xl border border-bg-200 dark:border-slate-700 overflow-hidden">
                                             <CalendarView
